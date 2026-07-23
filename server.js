@@ -1,21 +1,50 @@
 const express = require("express");
 const path = require("path");
+const fs = require("fs");
 const https = require("https");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const CONFIG_PATH = path.join(__dirname, "config.json");
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 const clients = [];
 
+// Cargar configuración desde archivo (persiste entre restarts)
+function cargarConfig() {
+  try {
+    if (fs.existsSync(CONFIG_PATH)) {
+      const data = fs.readFileSync(CONFIG_PATH, "utf8");
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.error("[CONFIG] Error leyendo config.json:", e.message);
+  }
+  return {};
+}
+
+function guardarConfig() {
+  try {
+    const data = JSON.stringify(
+      { whatsappNum: config.whatsappNum, whatsappKey: config.whatsappKey, telegramUser: config.telegramUser },
+      null,
+      2
+    );
+    fs.writeFileSync(CONFIG_PATH, data, "utf8");
+  } catch (e) {
+    console.error("[CONFIG] Error guardando config.json:", e.message);
+  }
+}
+
+const saved = cargarConfig();
 let config = {
-  whatsappNum: process.env.WA_NUM || "",
-  whatsappKey: process.env.WA_KEY || "",
-  waActivo: Boolean(process.env.WA_NUM && process.env.WA_KEY),
-  telegramUser: process.env.TG_USER || "",
-  tgActivo: Boolean(process.env.TG_USER),
+  whatsappNum: process.env.WA_NUM || saved.whatsappNum || "",
+  whatsappKey: process.env.WA_KEY || saved.whatsappKey || "",
+  waActivo: Boolean((process.env.WA_NUM || saved.whatsappNum) && (process.env.WA_KEY || saved.whatsappKey)),
+  telegramUser: process.env.TG_USER || saved.telegramUser || "",
+  tgActivo: Boolean(process.env.TG_USER || saved.telegramUser),
 };
 
 function enviarWhatsApp(mensaje) {
@@ -127,6 +156,7 @@ app.post("/api/config", (req, res) => {
 
   config.waActivo = Boolean(config.whatsappNum && config.whatsappKey);
   config.tgActivo = Boolean(config.telegramUser);
+  guardarConfig();
   console.log(`[CONFIG] WA:${config.waActivo} TG:${config.tgActivo}`);
 
   res.json({ ok: true, waActivo: config.waActivo, tgActivo: config.tgActivo });
