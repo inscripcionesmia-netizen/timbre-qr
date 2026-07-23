@@ -7,7 +7,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const CONFIG_PATH = path.join(__dirname, "config.json");
 
-app.use(express.json());
+app.use(express.json({ limit: "5mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 const clients = [];
@@ -164,6 +164,32 @@ app.post("/api/config", (req, res) => {
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", clients: clients.length, whatsapp: config.waActivo, telegram: config.tgActivo });
+});
+
+// POST /api/upload-sonido – Subir archivo de sonido personalizado (base64)
+app.post("/api/upload-sonido", (req, res) => {
+  const { audio } = req.body; // base64 del archivo
+  if (!audio) return res.status(400).json({ error: "No se envió ningún archivo" });
+
+  try {
+    const ext = req.body.ext || "wav";
+    const filePath = path.join(__dirname, "public", "sonido." + ext);
+    const buffer = Buffer.from(audio, "base64");
+    fs.writeFileSync(filePath, buffer);
+
+    // Si el archivo es MP3, actualizar la referencia
+    const sonidoPath = path.join(__dirname, "public", "sonido.wav");
+    if (filePath !== sonidoPath) {
+      // Copiar como .wav también para mantener compatibilidad
+      fs.writeFileSync(sonidoPath, buffer);
+    }
+
+    console.log(`[UPLOAD] Sonido guardado: ${filePath} (${buffer.length} bytes)`);
+    res.json({ ok: true, size: buffer.length });
+  } catch (e) {
+    console.error("[UPLOAD] Error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.listen(PORT, () => {
