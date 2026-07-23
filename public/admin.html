@@ -163,6 +163,18 @@
       </div>
     </div>
 
+    <div class="section-title">🎵 Sonido del Timbre</div>
+
+    <div class="wa-card" style="border-color:rgba(255,200,0,.25)">
+      <p style="font-size:.85rem;margin-bottom:.6rem;opacity:.8">Sube tu propio archivo de timbre (MP3 o WAV, máx 2MB)</p>
+      <input type="file" id="sonidoInput" accept=".mp3,.wav" style="width:100%;color:#eee;margin-bottom:.6rem;font-size:.85rem" />
+      <div style="display:flex;gap:.5rem">
+        <button class="wa-btn" id="sonidoSubirBtn" style="background:#ff8800;flex:1">📤 Subir sonido</button>
+        <button class="wa-btn" id="sonidoTestBtn" style="background:#666;flex:1">▶️ Probar</button>
+      </div>
+      <div class="wa-status" id="sonidoStatus"></div>
+    </div>
+
     <div class="section-title">🔄 Notificación Push (navegador)</div>
     <button class="wa-btn" id="pushBtn" style="width:100%;background:#5865f2;margin-bottom:.5rem;">🔔 Activar notificaciones del navegador</button>
 
@@ -417,6 +429,68 @@
         tgTestBtn.disabled = false;
         tgTestBtn.textContent = "🔔 Probar";
       }
+    });
+
+    // ============================================================
+    // SOUND UPLOAD
+    // ============================================================
+    const sonidoInput = document.getElementById("sonidoInput");
+    const sonidoSubirBtn = document.getElementById("sonidoSubirBtn");
+    const sonidoTestBtn = document.getElementById("sonidoTestBtn");
+    const sonidoStatus = document.getElementById("sonidoStatus");
+
+    sonidoSubirBtn.addEventListener("click", async () => {
+      const file = sonidoInput.files[0];
+      if (!file) {
+        sonidoStatus.className = "wa-status err";
+        sonidoStatus.textContent = "⚠️ Selecciona un archivo MP3 o WAV";
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        sonidoStatus.className = "wa-status err";
+        sonidoStatus.textContent = "⚠️ El archivo es muy grande (máx 2MB)";
+        return;
+      }
+
+      sonidoSubirBtn.disabled = true;
+      sonidoSubirBtn.textContent = "⏳ Subiendo…";
+
+      try {
+        const reader = new FileReader();
+        const b64 = await new Promise((resolve, reject) => {
+          reader.onload = () => resolve(reader.result.split(",")[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const ext = file.name.split(".").pop().toLowerCase();
+        const r = await fetch("/api/upload-sonido", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ audio: b64, ext }),
+        });
+        const data = await r.json();
+        if (data.ok) {
+          sonidoStatus.className = "wa-status ok";
+          sonidoStatus.textContent = "✅ Timbre subido correctamente (" + (data.size / 1024).toFixed(1) + " KB)";
+        } else {
+          throw new Error(data.error || "Error");
+        }
+      } catch (err) {
+        sonidoStatus.className = "wa-status err";
+        sonidoStatus.textContent = "❌ " + err.message;
+      } finally {
+        sonidoSubirBtn.disabled = false;
+        sonidoSubirBtn.textContent = "📤 Subir sonido";
+      }
+    });
+
+    sonidoTestBtn.addEventListener("click", () => {
+      const audio = new Audio("/sonido.wav?" + Date.now());
+      audio.play().catch(() => {
+        sonidoStatus.className = "wa-status err";
+        sonidoStatus.textContent = "❌ No se pudo reproducir. ¿Activaste el audio?";
+      });
     });
 
     // ============================================================
