@@ -93,10 +93,12 @@ app.post("/api/config", (req, res) => {
   const { whatsappNum, whatsappKey } = req.body;
 
   if (whatsappNum !== undefined) {
-    if (!/^\d{7,15}$/.test(String(whatsappNum))) {
+    // Limpiar: quitar +, espacios, guiones
+    let num = String(whatsappNum).replace(/[\s\-]/g, "").replace(/^\+/, "");
+    if (!/^\d{7,15}$/.test(num)) {
       return res.status(400).json({ error: "Número inválido (solo dígitos, 7-15)" });
     }
-    config.whatsappNum = String(whatsappNum);
+    config.whatsappNum = num;
   }
   if (whatsappKey !== undefined) {
     config.whatsappKey = String(whatsappKey);
