@@ -8,31 +8,48 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// Almacena todas las conexiones SSE activas
 const clients = [];
 
-// Configuración de WhatsApp (se puede sobrescribir vía API)
 let config = {
   whatsappNum: process.env.WA_NUM || "",
   whatsappKey: process.env.WA_KEY || "",
-  activo: Boolean(process.env.WA_NUM && process.env.WA_KEY),
+  waActivo: Boolean(process.env.WA_NUM && process.env.WA_KEY),
+  telegramUser: process.env.TG_USER || "",
+  tgActivo: Boolean(process.env.TG_USER),
 };
 
 function enviarWhatsApp(mensaje) {
   return new Promise((resolve) => {
-    if (!config.activo) return resolve(false);
-
+    if (!config.waActivo) return resolve(false);
     const url = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(config.whatsappNum)}&text=${encodeURIComponent(mensaje)}&apikey=${encodeURIComponent(config.whatsappKey)}`;
-
     https.get(url, (res) => {
       let data = "";
       res.on("data", (chunk) => (data += chunk));
       res.on("end", () => {
-        console.log(`[WHATSAPP] Enviado. Código: ${res.statusCode} — ${data.slice(0, 100)}`);
+        console.log(`[WA] Código: ${res.statusCode} — ${data.slice(0, 60)}`);
         resolve(res.statusCode === 200);
       });
     }).on("error", (err) => {
-      console.error("[WHATSAPP] Error:", err.message);
+      console.error("[WA] Error:", err.message);
+      resolve(false);
+    });
+  });
+}
+
+function enviarTelegram(mensaje) {
+  return new Promise((resolve) => {
+    if (!config.tgActivo) return resolve(false);
+    const user = config.telegramUser.startsWith("@") ? config.telegramUser : "@" + config.telegramUser;
+    const url = `https://api.callmebot.com/text.php?user=${encodeURIComponent(user)}&text=${encodeURIComponent(mensaje)}`;
+    https.get(url, (res) => {
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => {
+        console.log(`[TG] Código: ${res.statusCode} — ${data.slice(0, 60)}`);
+        resolve(res.statusCode === 200);
+      });
+    }).on("error", (err) => {
+      console.error("[TG] Error:", err.message);
       resolve(false);
     });
   });
@@ -74,9 +91,9 @@ app.post("/api/llamar", async (req, res) => {
 
   clients.forEach((c) => c.res.write(`event: timbre\ndata: ${payload}\n\n`));
 
-  // Enviar WhatsApp en segundo plano
-  const textoWA = `🔔 TIMBRE QR - ${ahora}%0A¡Alguien está tocando la puerta!%0AIP: ${ip}`;
-  enviarWhatsApp(textoWA);
+  const texto = `🔔 TIMBRE QR - ${ahora} | Alguien esta tocando la puerta! IP: ${ip}`;
+  enviarWhatsApp(texto);
+  enviarTelegram(texto);
 
   res.json({ ok: true, mensaje: "Llamando a la puerta..." });
 });
@@ -85,38 +102,43 @@ app.get("/api/config", (_req, res) => {
   res.json({
     whatsappNum: config.whatsappNum,
     whatsappKey: config.whatsappKey ? "****" + config.whatsappKey.slice(-4) : "",
-    activo: config.activo,
+    waActivo: config.waActivo,
+    telegramUser: config.telegramUser,
+    tgActivo: config.tgActivo,
   });
 });
 
 app.post("/api/config", (req, res) => {
-  const { whatsappNum, whatsappKey } = req.body;
+  const { whatsappNum, whatsappKey, telegramUser } = req.body;
 
   if (whatsappNum !== undefined) {
-    // Limpiar: quitar +, espacios, guiones
     let num = String(whatsappNum).replace(/[\s\-]/g, "").replace(/^\+/, "");
-    if (!/^\d{7,15}$/.test(num)) {
-      return res.status(400).json({ error: "Número inválido (solo dígitos, 7-15)" });
+    if (num && !/^\d{7,15}$/.test(num)) {
+      return res.status(400).json({ error: "Número inválido" });
     }
     config.whatsappNum = num;
   }
   if (whatsappKey !== undefined) {
     config.whatsappKey = String(whatsappKey);
   }
+  if (telegramUser !== undefined) {
+    config.telegramUser = String(telegramUser).replace(/^@/, "");
+  }
 
-  config.activo = Boolean(config.whatsappNum && config.whatsappKey);
-  console.log(`[CONFIG] WhatsApp ${config.activo ? "ACTIVADO" : "DESACTIVADO"} — num: ${config.whatsappNum}`);
+  config.waActivo = Boolean(config.whatsappNum && config.whatsappKey);
+  config.tgActivo = Boolean(config.telegramUser);
+  console.log(`[CONFIG] WA:${config.waActivo} TG:${config.tgActivo}`);
 
-  res.json({ ok: true, activo: config.activo });
+  res.json({ ok: true, waActivo: config.waActivo, tgActivo: config.tgActivo });
 });
 
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", clients: clients.length, whatsapp: config.activo });
+  res.json({ status: "ok", clients: clients.length, whatsapp: config.waActivo, telegram: config.tgActivo });
 });
 
 app.listen(PORT, () => {
   console.log(`[SERVER] Timbre QR iniciado en http://localhost:${PORT}`);
-  console.log(`[SERVER] Visitante : http://localhost:${PORT}`);
-  console.log(`[SERVER] Admin     : http://localhost:${PORT}/admin.html`);
-  console.log(`[SERVER] WhatsApp  : ${config.activo ? "ACTIVO" : "INACTIVO — configura desde el panel admin"}`);
+  console.log(`[SERVER] Admin : http://localhost:${PORT}/admin.html`);
+  console.log(`[SERVER] WhatsApp : ${config.waActivo ? "ACTIVO" : "INACTIVO"}`);
+  console.log(`[SERVER] Telegram : ${config.tgActivo ? "ACTIVO" : "INACTIVO"}`);
 });
