@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Llamar al Timbre</title>
+  <title>Timbre Inteligente</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -32,18 +32,44 @@
       display: block;
       animation: pulse 1.5s ease-in-out infinite;
     }
-    @keyframes pulse {
-      0%,100% { transform: scale(1); }
-      50% { transform: scale(1.12); }
-    }
+    @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
     h1 { font-size: 1.6rem; font-weight: 600; margin-bottom: 0.5rem; }
     .sub { opacity: .7; font-size: .95rem; margin-bottom: 1.8rem; }
+    .btn-timbre {
+      width: 100%;
+      padding: 1.2rem;
+      border: none;
+      border-radius: 20px;
+      font-size: 1.4rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: .2s;
+      background: #e94560;
+      color: #fff;
+      margin-bottom: 1rem;
+    }
+    .btn-timbre:active { transform: scale(.95); }
+    .btn-timbre:disabled { opacity: .5; }
+    .btn-detener {
+      width: 100%;
+      padding: .8rem;
+      border: none;
+      border-radius: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: .2s;
+      background: #ff4444;
+      color: #fff;
+      display: none;
+      margin-bottom: 1rem;
+    }
+    .btn-detener:active { transform: scale(.95); }
     .status {
-      background: rgba(233,69,96,0.15);
-      border: 1px solid rgba(233,69,96,0.3);
+      background: rgba(255,255,255,0.06);
       border-radius: 16px;
       padding: 1rem;
-      font-size: 1.1rem;
+      font-size: 1rem;
       min-height: 3rem;
       display: flex;
       align-items: center;
@@ -51,17 +77,6 @@
       gap: .6rem;
       transition: .3s;
     }
-    .status.loading { border-color: rgba(255,200,50,0.4); }
-    .status.done { border-color: rgba(80,200,120,0.4); background: rgba(80,200,120,0.1); }
-    .spinner {
-      width: 20px; height: 20px;
-      border: 3px solid rgba(255,255,255,0.15);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin .7s linear infinite;
-      display: inline-block;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
     .footer { margin-top: 2rem; font-size: .8rem; opacity: .4; }
   </style>
 </head>
@@ -69,36 +84,63 @@
   <div class="card">
     <span class="bell">🔔</span>
     <h1>Timbre Inteligente</h1>
-    <p class="sub">Escanea el código QR para llamar</p>
-    <div class="status" id="status">
-      <span class="spinner"></span>
-      Llamando a la puerta…
-    </div>
-    <p class="footer">Espere unos segundos, por favor</p>
+    <p class="sub">Presiona el botón para llamar</p>
+
+    <button class="btn-timbre" id="btnLlamar">🔔 TOCAR TIMBRE</button>
+    <button class="btn-detener" id="btnDetener">🔕 Detener</button>
+
+    <div class="status" id="status">Toca el botón para llamar a la puerta</div>
+    <p class="footer">Sonará un timbre y se notificará al dueño</p>
   </div>
 
   <script>
-    (async () => {
-      const status = document.getElementById("status");
+    const btnLlamar = document.getElementById("btnLlamar");
+    const btnDetener = document.getElementById("btnDetener");
+    const status = document.getElementById("status");
+    let currentAudio = null;
+    let isRinging = false;
+
+    function detenerSonido() {
+      if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; currentAudio = null; }
+      isRinging = false;
+      btnDetener.style.display = "none";
+    }
+
+    btnDetener.addEventListener("click", detenerSonido);
+
+    btnLlamar.addEventListener("click", async () => {
+      btnLlamar.disabled = true;
+      btnLlamar.textContent = "⏳ Llamando…";
+      detenerSonido();
+
       try {
         const res = await fetch("/api/llamar", { method: "POST" });
         const data = await res.json();
+
         if (data.ok) {
-          status.className = "status done";
-          status.innerHTML = "✅ " + data.mensaje;
-          // Reproducir sonido en el teléfono del visitante
-          try {
-            const audio = new Audio("/sonido.wav");
-            audio.play();
-          } catch {}
+          status.textContent = "✅ " + data.mensaje;
+          // Reproducir sonido en bucle (móvil: funciona porque el usuario tocó el botón)
+          isRinging = true;
+          btnDetener.style.display = "block";
+
+          function reproducir() {
+            if (!isRinging) return;
+            currentAudio = new Audio("/sonido.wav");
+            currentAudio.play().catch(() => {});
+            currentAudio.onended = () => { if (isRinging) setTimeout(reproducir, 400); };
+          }
+
+          reproducir();
         } else {
-          throw new Error("Respuesta inesperada");
+          status.textContent = "❌ Error al llamar";
         }
       } catch {
-        status.className = "status";
-        status.innerHTML = "❌ Error de conexión. ¿El servidor está encendido?";
+        status.textContent = "❌ Error de conexión";
+      } finally {
+        btnLlamar.disabled = false;
+        btnLlamar.textContent = "🔔 TOCAR TIMBRE";
       }
-    })();
+    });
   </script>
 </body>
 </html>
