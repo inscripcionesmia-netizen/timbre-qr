@@ -86,6 +86,11 @@
         if (data.ok) {
           status.className = "status done";
           status.innerHTML = "✅ " + data.mensaje;
+          // Reproducir sonido en el teléfono del visitante
+          try {
+            const audio = new Audio("/sonido.wav");
+            audio.play();
+          } catch {}
         } else {
           throw new Error("Respuesta inesperada");
         }
