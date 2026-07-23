@@ -134,9 +134,31 @@
       <button class="wa-btn" id="waSaveBtn">💾 Guardar</button>
       <div class="wa-status" id="waStatus"></div>
       <div class="wa-info">
-        📌 1. Envía "I allow callmebot to send me messages" al <strong>+34 632 34 01 54</strong> por WhatsApp.<br />
-        📌 2. Ve a <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" rel="noopener">callmebot.com</a> y obtén tu API Key.<br />
-        📌 3. Ingresa tu número y API Key aquí y presiona Guardar.
+        📌 1. Guarda <strong>+34 644 44 21 48</strong> en tus contactos.<br />
+        📌 2. Envía "I allow callmebot to send me messages" a ese contacto por WhatsApp.<br />
+        📌 3. El bot te responderá con tu API Key. Pon número + API Key aquí.<br />
+        📌 O mejor, usa <strong>Telegram</strong> (arriba) que es más fácil y sin API Key.
+      </div>
+    </div>
+
+    <div class="section-title">✈️ Notificación Telegram (recomendado)</div>
+
+    <div class="wa-card" style="border-color:rgba(0,136,204,.25)">
+      <div class="wa-row">
+        <div class="wa-field" style="margin-bottom:0">
+          <label>Tu usuario de Telegram (sin @)</label>
+          <input type="text" id="tgUser" placeholder="usuario" />
+        </div>
+      </div>
+      <div style="display:flex;gap:.5rem;margin-top:.5rem">
+        <button class="wa-btn" id="tgSaveBtn" style="background:#0088cc">💾 Guardar</button>
+        <button class="wa-btn" id="tgTestBtn" style="background:#666;flex:1">🔔 Probar</button>
+      </div>
+      <div class="wa-status" id="tgStatus"></div>
+      <div class="wa-info">
+        📌 1. Abre Telegram y busca <strong>@CallMeBot_txtbot</strong><br />
+        📌 2. Envía <strong>/start</strong> al bot<br />
+        📌 3. Pon aquí tu usuario de Telegram y Guardar
       </div>
     </div>
 
@@ -266,9 +288,14 @@
         const r = await fetch("/api/config");
         const cfg = await r.json();
         if (cfg.whatsappNum) waNum.value = cfg.whatsappNum;
-        if (cfg.activo) {
+        if (cfg.waActivo) {
           waStatus.className = "wa-status ok";
           waStatus.textContent = "✅ WhatsApp configurado y activo";
+        }
+        if (cfg.telegramUser) tgUser.value = cfg.telegramUser;
+        if (cfg.tgActivo) {
+          tgStatus.className = "wa-status ok";
+          tgStatus.textContent = "✅ Telegram configurado y activo";
         }
       } catch {}
     }
@@ -293,7 +320,7 @@
           body: JSON.stringify({ whatsappNum: num, whatsappKey: key }),
         });
         const data = await r.json();
-        if (data.ok) {
+        if (data.waActivo) {
           waStatus.className = "wa-status ok";
           waStatus.textContent = "✅ WhatsApp configurado correctamente";
         } else {
@@ -309,6 +336,67 @@
     });
 
     cargarConfig();
+
+    // ============================================================
+    // TELEGRAM CONFIG
+    // ============================================================
+    const tgUser = document.getElementById("tgUser");
+    const tgSaveBtn = document.getElementById("tgSaveBtn");
+    const tgTestBtn = document.getElementById("tgTestBtn");
+    const tgStatus = document.getElementById("tgStatus");
+
+    tgSaveBtn.addEventListener("click", async () => {
+      const user = tgUser.value.trim();
+
+      if (!user) {
+        tgStatus.className = "wa-status err";
+        tgStatus.textContent = "⚠️ Escribe tu usuario de Telegram";
+        return;
+      }
+
+      tgSaveBtn.disabled = true;
+      tgSaveBtn.textContent = "⏳ Guardando…";
+
+      try {
+        const r = await fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ telegramUser: user }),
+        });
+        const data = await r.json();
+        if (data.tgActivo) {
+          tgStatus.className = "wa-status ok";
+          tgStatus.textContent = "✅ Telegram configurado correctamente";
+        } else {
+          throw new Error("Error al guardar");
+        }
+      } catch (err) {
+        tgStatus.className = "wa-status err";
+        tgStatus.textContent = "❌ " + err.message;
+      } finally {
+        tgSaveBtn.disabled = false;
+        tgSaveBtn.textContent = "💾 Guardar";
+      }
+    });
+
+    tgTestBtn.addEventListener("click", async () => {
+      tgTestBtn.disabled = true;
+      tgTestBtn.textContent = "⏳ Enviando…";
+      try {
+        const r = await fetch("/api/llamar", { method: "POST" });
+        const data = await r.json();
+        if (data.ok) {
+          tgStatus.className = "wa-status ok";
+          tgStatus.textContent = "✅ Mensaje de prueba enviado, revisa Telegram";
+        }
+      } catch {
+        tgStatus.className = "wa-status err";
+        tgStatus.textContent = "❌ Error al enviar";
+      } finally {
+        tgTestBtn.disabled = false;
+        tgTestBtn.textContent = "🔔 Probar";
+      }
+    });
 
     // ============================================================
     // QR GENERATOR
