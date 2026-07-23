@@ -112,6 +112,7 @@
     <p class="subtitle">Timbre Inteligente QR</p>
 
     <button id="unlockBtn">🔇 Activar audio y vibración</button>
+    <button id="stopBtn" style="display:none;width:100%;padding:.85rem;border:none;border-radius:14px;font-size:1rem;font-weight:600;cursor:pointer;transition:.25s;margin-bottom:1rem;background:#ff4444;color:#fff">🔕 Detener timbre</button>
 
     <div class="connection-status">
       <span class="dot off" id="statusDot"></span>
@@ -186,7 +187,10 @@
     const statusDot = document.getElementById("statusDot");
     const statusText = document.getElementById("statusText");
     const lastCall = document.getElementById("lastCall");
+    const stopBtn = document.getElementById("stopBtn");
     let audioCtx = null;
+    let currentAudio = null;
+    let isRinging = false;
 
     // ============================================================
     // AUDIO UNLOCK
@@ -201,6 +205,12 @@
       });
     });
 
+    stopBtn.addEventListener("click", () => {
+      if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; currentAudio = null; }
+      isRinging = false;
+      stopBtn.style.display = "none";
+    });
+
     function playSound() {
       if (!audioCtx || audioCtx.state !== "running") {
         unlockBtn.textContent = "🔇 Presiona 'Activar audio' primero";
@@ -209,11 +219,22 @@
         unlockBtn.style.animation = "shake .4s";
         return;
       }
-      const audio = new Audio("/sonido.wav");
-      audio.play().catch(console.warn);
+
       if (navigator.vibrate) {
-        navigator.vibrate([200, 100, 200, 100, 400]);
+        navigator.vibrate([300, 150, 300, 150, 500]);
       }
+
+      isRinging = true;
+      stopBtn.style.display = "block";
+
+      function reproducir() {
+        if (!isRinging) return;
+        currentAudio = new Audio("/sonido.wav");
+        currentAudio.play().catch(console.warn);
+        currentAudio.onended = () => { if (isRinging) setTimeout(reproducir, 400); };
+      }
+
+      reproducir();
     }
 
     const styleShake = document.createElement("style");
