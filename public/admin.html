@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Panel Receptor — Timbre QR</title>
+  <link rel="manifest" href="/manifest.json" />
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(160deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      min-height: 100vh;
+      color: #eee;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .container { max-width: 480px; width: 100%; }
+    h1 { text-align: center; font-size: 1.4rem; font-weight: 600; margin: 1rem 0 0.25rem; display: flex; align-items: center; justify-content: center; gap: .5rem; }
+    .subtitle { text-align: center; opacity: .55; font-size: .85rem; margin-bottom: 1.2rem; }
+    #unlockBtn {
+      width: 100%; padding: .85rem; border: none; border-radius: 14px;
+      font-size: 1rem; font-weight: 600; cursor: pointer; transition: .25s;
+      margin-bottom: 1rem; background: #e94560; color: #fff;
+    }
+    #unlockBtn:active { transform: scale(.97); }
+    #unlockBtn.unlocked { background: #1a8a3f; pointer-events: none; opacity: .7; }
+    .connection-status {
+      display: flex; align-items: center; gap: .5rem; justify-content: center;
+      font-size: .85rem; margin-bottom: 1rem; padding: .4rem .8rem;
+      border-radius: 30px; background: rgba(255,255,255,.05);
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .dot.on { background: #4ade80; box-shadow: 0 0 8px #4ade8044; }
+    .dot.off { background: #666; }
+    .section-title {
+      font-size: .8rem; text-transform: uppercase; letter-spacing: .08em;
+      opacity: .5; margin: 1.5rem 0 .6rem; text-align: center;
+    }
+    hr { border: none; border-top: 1px solid rgba(255,255,255,.08); margin: .6rem 0; }
+    .qr-field { display: flex; gap: .5rem; margin-bottom: .8rem; }
+    .qr-field input {
+      flex: 1; padding: .7rem .9rem; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06);
+      color: #eee; font-size: .9rem; outline: none; transition: .2s;
+    }
+    .qr-field input:focus { border-color: #e94560; }
+    .qr-field button {
+      padding: .7rem 1.2rem; border: none; border-radius: 12px;
+      background: #e94560; color: #fff; font-weight: 600; font-size: .9rem;
+      cursor: pointer; transition: .2s; white-space: nowrap;
+    }
+    .qr-field button:active { transform: scale(.95); }
+    #qrContainer {
+      display: flex; justify-content: center; background: #fff;
+      border-radius: 18px; padding: 1rem; min-height: 180px; align-items: center;
+    }
+    #qrContainer img, #qrContainer canvas { max-width: 100%; height: auto; }
+    .hint { font-size: .75rem; opacity: .4; text-align: center; margin-top: .5rem; }
+    .last-call {
+      margin-top: 1rem; padding: .75rem 1rem; border-radius: 14px;
+      background: rgba(233,69,96,.08); border: 1px solid rgba(233,69,96,.15);
+      font-size: .85rem; display: none; text-align: center;
+    }
+    .last-call.show { display: block; }
+
+    /* === CONFIGURACIÓN WHATSAPP === */
+    .wa-card {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 16px; padding: 1rem; margin-top: .8rem;
+    }
+    .wa-field { margin-bottom: .7rem; }
+    .wa-field label {
+      display: block; font-size: .8rem; opacity: .6;
+      margin-bottom: .3rem; font-weight: 500;
+    }
+    .wa-field input {
+      width: 100%; padding: .6rem .8rem; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06);
+      color: #eee; font-size: .9rem; outline: none; transition: .2s;
+    }
+    .wa-field input:focus { border-color: #25d366; }
+    .wa-row { display: flex; gap: .5rem; align-items: flex-end; }
+    .wa-row .wa-field { flex: 1; margin-bottom: 0; }
+    .wa-btn {
+      padding: .6rem 1rem; border: none; border-radius: 10px;
+      font-weight: 600; cursor: pointer; transition: .2s;
+      background: #25d366; color: #fff; white-space: nowrap;
+      height: 40px;
+    }
+    .wa-btn:active { transform: scale(.95); }
+    .wa-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .wa-status {
+      font-size: .8rem; margin-top: .5rem; padding: .4rem .7rem;
+      border-radius: 8px; display: none;
+    }
+    .wa-status.ok { display: block; background: rgba(37,211,102,.12); color: #4ade80; }
+    .wa-status.err { display: block; background: rgba(233,69,96,.12); color: #e94560; }
+    .wa-info {
+      font-size: .75rem; opacity: .45; margin-top: .6rem; line-height: 1.4;
+    }
+    .wa-info a { color: #25d366; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📡 Receptor</h1>
+    <p class="subtitle">Timbre Inteligente QR</p>
+
+    <button id="unlockBtn">🔇 Activar audio y vibración</button>
+
+    <div class="connection-status">
+      <span class="dot off" id="statusDot"></span>
+      <span id="statusText">Desconectado</span>
+    </div>
+
+    <div class="section-title">📱 Notificación WhatsApp</div>
+
+    <div class="wa-card">
+      <div class="wa-row">
+        <div class="wa-field">
+          <label>Tu número WhatsApp (con código país, sin +)</label>
+          <input type="tel" id="waNum" placeholder="593979001428" />
+        </div>
+        <div class="wa-field">
+          <label>API Key (de callmebot.com)</label>
+          <input type="password" id="waKey" placeholder="123456" />
+        </div>
+      </div>
+      <button class="wa-btn" id="waSaveBtn">💾 Guardar</button>
+      <div class="wa-status" id="waStatus"></div>
+      <div class="wa-info">
+        📌 1. Envía "I allow callmebot to send me messages" al <strong>+34 632 34 01 54</strong> por WhatsApp.<br />
+        📌 2. Ve a <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" rel="noopener">callmebot.com</a> y obtén tu API Key.<br />
+        📌 3. Ingresa tu número y API Key aquí y presiona Guardar.
+      </div>
+    </div>
+
+    <div class="section-title">🔄 Notificación Push (navegador)</div>
+    <button class="wa-btn" id="pushBtn" style="width:100%;background:#5865f2;margin-bottom:.5rem;">🔔 Activar notificaciones del navegador</button>
+
+    <div class="section-title">Generador de Código QR</div>
+
+    <div class="qr-field">
+      <input type="url" id="qrUrl" value="http://localhost:3000/" />
+      <button id="generateBtn">Generar QR</button>
+    </div>
+
+    <div id="qrContainer"><p style="color:#888;font-size:.85rem;">Presiona "Generar QR"</p></div>
+    <p class="hint">Escanea con tu teléfono para llamar al timbre</p>
+    <p class="hint" id="publicUrlHint" style="opacity:.6;margin-top:.25rem;"></p>
+
+    <hr />
+
+    <div class="last-call" id="lastCall"></div>
+  </div>
+
+  <script>
+    const unlockBtn = document.getElementById("unlockBtn");
+    const statusDot = document.getElementById("statusDot");
+    const statusText = document.getElementById("statusText");
+    const lastCall = document.getElementById("lastCall");
+    let audioCtx = null;
+
+    // ============================================================
+    // AUDIO UNLOCK
+    // ============================================================
+    unlockBtn.addEventListener("click", () => {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtx.resume().then(() => {
+        unlockBtn.textContent = "🔊 Audio activado";
+        unlockBtn.classList.add("unlocked");
+      }).catch(() => {
+        unlockBtn.textContent = "⚠️ No se pudo activar";
+      });
+    });
+
+    function playSound() {
+      if (!audioCtx || audioCtx.state !== "running") {
+        unlockBtn.textContent = "🔇 Presiona 'Activar audio' primero";
+        unlockBtn.style.animation = "none";
+        unlockBtn.offsetHeight;
+        unlockBtn.style.animation = "shake .4s";
+        return;
+      }
+      const audio = new Audio("/sonido.wav");
+      audio.play().catch(console.warn);
+      if (navigator.vibrate) {
+        navigator.vibrate([200, 100, 200, 100, 400]);
+      }
+    }
+
+    const styleShake = document.createElement("style");
+    styleShake.textContent =
+      `@keyframes shake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-8px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-5px); } 80% { transform: translateX(5px); } }`;
+    document.head.appendChild(styleShake);
+
+    // ============================================================
+    // SSE
+    // ============================================================
+    function conectarSSE() {
+      const evtSource = new EventSource("/api/events");
+
+      evtSource.addEventListener("connected", () => {
+        statusDot.className = "dot on";
+        statusText.textContent = "Conectado";
+      });
+
+      evtSource.addEventListener("timbre", (e) => {
+        const data = JSON.parse(e.data);
+        playSound();
+        // Notificación push del navegador
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification("🔔 ¡Timbre QR!", {
+            body: data.mensaje + " — " + data.timestamp,
+            icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='64' fill='%2316213e'/%3E%3Cpath d='M256 64c-8 0-16 4-20 12l-44 88c-40 16-68 56-68 100v44c0 28-12 52-32 68-8 6-12 16-12 24 0 12 8 20 20 20h272c12 0 20-8 20-20 0-8-4-18-12-24-20-16-32-40-32-68v-44c0-44-28-84-68-100l-44-88c-4-8-12-12-20-12zm-28 356c0 16 12 28 28 28s28-12 28-28h-56z' fill='%23e94560'/%3E%3C/svg%3E",
+            tag: "timbre",
+            vibrate: [200, 100, 200, 100, 400],
+          });
+        }
+        lastCall.textContent = "🔔 " + data.mensaje + " — " + data.timestamp;
+        lastCall.classList.add("show");
+        statusDot.className = "dot on";
+        statusDot.style.boxShadow = "0 0 16px #e94560";
+        setTimeout(() => { statusDot.style.boxShadow = ""; }, 800);
+      });
+
+      evtSource.onerror = () => {
+        statusDot.className = "dot off";
+        statusText.textContent = "Reconectando…";
+      };
+    }
+
+    conectarSSE();
+
+    // ============================================================
+    // PUSH NOTIFICATIONS
+    // ============================================================
+    document.getElementById("pushBtn").addEventListener("click", () => {
+      if (!("Notification" in window)) {
+        alert("Este navegador no soporta notificaciones push.");
+        return;
+      }
+      Notification.requestPermission().then((perm) => {
+        if (perm === "granted") {
+          document.getElementById("pushBtn").textContent = "✅ Notificaciones activadas";
+          document.getElementById("pushBtn").disabled = true;
+        }
+      });
+    });
+
+    // ============================================================
+    // WHATSAPP CONFIG
+    // ============================================================
+    const waNum = document.getElementById("waNum");
+    const waKey = document.getElementById("waKey");
+    const waSaveBtn = document.getElementById("waSaveBtn");
+    const waStatus = document.getElementById("waStatus");
+
+    async function cargarConfig() {
+      try {
+        const r = await fetch("/api/config");
+        const cfg = await r.json();
+        if (cfg.whatsappNum) waNum.value = cfg.whatsappNum;
+        if (cfg.activo) {
+          waStatus.className = "wa-status ok";
+          waStatus.textContent = "✅ WhatsApp configurado y activo";
+        }
+      } catch {}
+    }
+
+    waSaveBtn.addEventListener("click", async () => {
+      const num = waNum.value.trim();
+      const key = waKey.value.trim();
+
+      if (!num || !key) {
+        waStatus.className = "wa-status err";
+        waStatus.textContent = "⚠️ Completa ambos campos";
+        return;
+      }
+
+      waSaveBtn.disabled = true;
+      waSaveBtn.textContent = "⏳ Guardando…";
+
+      try {
+        const r = await fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ whatsappNum: num, whatsappKey: key }),
+        });
+        const data = await r.json();
+        if (data.ok) {
+          waStatus.className = "wa-status ok";
+          waStatus.textContent = "✅ WhatsApp configurado correctamente";
+        } else {
+          throw new Error(data.error || "Error");
+        }
+      } catch (err) {
+        waStatus.className = "wa-status err";
+        waStatus.textContent = "❌ " + err.message;
+      } finally {
+        waSaveBtn.disabled = false;
+        waSaveBtn.textContent = "💾 Guardar";
+      }
+    });
+
+    cargarConfig();
+
+    // ============================================================
+    // QR GENERATOR
+    // ============================================================
+    const qrUrlInput = document.getElementById("qrUrl");
+    const generateBtn = document.getElementById("generateBtn");
+    const qrContainer = document.getElementById("qrContainer");
+    const publicUrlHint = document.getElementById("publicUrlHint");
+
+    let qrCodeInstance = null;
+
+    function generarQR(texto) {
+      qrContainer.innerHTML = "";
+      if (!texto || texto.trim() === "") {
+        qrContainer.innerHTML = '<p style="color:#888;font-size:.85rem;">Ingresa una URL válida</p>';
+        return;
+      }
+      try {
+        qrCodeInstance = new QRCode(qrContainer, {
+          text: texto.trim(),
+          width: 220,
+          height: 220,
+          colorDark: "#1a1a2e",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.H,
+        });
+      } catch {
+        qrContainer.innerHTML = '<p style="color:#e94560;font-size:.85rem;">Error al generar el QR</p>';
+      }
+    }
+
+    generateBtn.addEventListener("click", () => {
+      const url = qrUrlInput.value.trim();
+      if (!url) {
+        qrUrlInput.focus();
+        qrContainer.innerHTML = '<p style="color:#e94560;font-size:.85rem;">La URL no puede estar vacía</p>';
+        return;
+      }
+      generarQR(url);
+    });
+
+    qrUrlInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") generateBtn.click();
+    });
+
+    // Detectar URL pública automáticamente
+    function detectarURLPublica() {
+      const actual = window.location.href;
+      // Si no es localhost, asumir que es la URL pública
+      if (!actual.includes("localhost") && !actual.includes("127.0.0.1") && !actual.includes("192.168.") && !actual.includes("10.")) {
+        const base = actual.replace(/\/admin\.html.*$/, "/");
+        qrUrlInput.value = base;
+        publicUrlHint.textContent = "🌍 URL pública detectada: " + base;
+        generarQR(base);
+      } else {
+        publicUrlHint.textContent = "💡 Usa ngrok o un dominio público para que funcione desde cualquier red";
+      }
+    }
+
+    detectarURLPublica();
+
+    window.addEventListener("DOMContentLoaded", () => {
+      if (!qrContainer.querySelector("canvas") && !qrContainer.querySelector("img")) {
+        generarQR(qrUrlInput.value.trim());
+      }
+    });
+  </script>
+</body>
+</html>
